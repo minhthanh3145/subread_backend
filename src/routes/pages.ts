@@ -61,17 +61,18 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
             groupId = activeGroup[0].group_id;
         }
 
-        // Fetch a random book_id from the assigned 10 books for the group
-        const { rows: randomBook } = await pool.query(`
+        // Determine the book for the day using the current_day value
+        const { rows: bookForTheDay } = await pool.query(`
             SELECT book_id FROM group_books
-            WHERE group_id = $1
-            ORDER BY RANDOM()
+            WHERE group_id = $1 AND day = (
+                SELECT MOD(current_day, 10) + 1 FROM groups WHERE group_id = $1
+            )
             LIMIT 1
         `, [groupId]);
 
-        const selectedBookId = randomBook[0].book_id;
+        const selectedBookId = bookForTheDay[0].book_id;
 
-        // Fetch the pages for the current day from the randomly selected book, along with comment count
+        // Fetch the pages for the current day from the determined book
         const { rows: pages } = await pool.query(`
             SELECT pages.*, COUNT(comments.comment_id) AS comment_count
             FROM pages
@@ -82,7 +83,7 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
                 SELECT current_day FROM groups WHERE group_id = $2
             ) * 10
             GROUP BY pages.page_id
-`, [selectedBookId, groupId]);
+        `, [selectedBookId, groupId]);
 
         res.status(200).json(pages);
     } catch (err) {
