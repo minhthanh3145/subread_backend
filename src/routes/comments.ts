@@ -1,6 +1,7 @@
 import express, { Router, Request, Response } from 'express';
 import { pool } from '../dbConfig';  // Import the pool object
 import { verifyToken } from '../lib/authMiddleware';
+import { AuthenticatedRequest } from '../lib/types';
 
 interface CommentRequest {
     user_id: number;
@@ -25,10 +26,10 @@ router.post('/add', verifyToken, async (req: Request<{}, {}, CommentRequest>, re
     }
 });
 
-router.get('/page/:page_id', verifyToken, async (req: Request, res: Response) => {
-    const { page_id } = req.params;
+router.get('/book/:book_id/page/:page_id', verifyToken, async (req: AuthenticatedRequest, res: Response) => {
+    const { page_id, book_id } = req.params;
     try {
-        const { rows } = await pool.query('SELECT * FROM comments WHERE page_id = $1', [page_id]);
+        const { rows } = await pool.query('SELECT * FROM comments WHERE page_id = $1 and book_id = $2', [page_id, book_id]);
         res.status(200).json(rows);
     } catch (err) {
         res.status(500).json({ error: 'Failed to fetch comments' });
