@@ -26,10 +26,10 @@ router.post('/add', verifyToken, async (req: Request<{}, {}, CommentRequest>, re
     }
 });
 
-router.get('/book/:book_id/page/:page_id', verifyToken, async (req: AuthenticatedRequest, res: Response) => {
-    const { page_id, book_id } = req.params;
+router.get('/page/:page_id', verifyToken, async (req: AuthenticatedRequest, res: Response) => {
+    const { page_id } = req.params;
     try {
-        const { rows } = await pool.query('SELECT * FROM comments WHERE page_id = $1 and book_id = $2', [page_id, book_id]);
+        const { rows } = await pool.query('SELECT * FROM comments WHERE page_id = $1', [page_id]);
         res.status(200).json(rows);
     } catch (err) {
         res.status(500).json({ error: 'Failed to fetch comments' });
