@@ -13,8 +13,10 @@ interface CommentRequest {
 const router: Router = express.Router();
 
 
-router.post('/add', verifyToken, async (req: Request<{}, {}, CommentRequest>, res: Response) => {
-    const { user_id, page_id, highlighted_text, comment_text } = req.body;
+router.post('/add', verifyToken, async (req: AuthenticatedRequest, res: Response) => {
+    const { page_id, highlighted_text, comment_text } = req.body;
+    const user_id = req.user.userId;
+
     try {
         await pool.query(
             'INSERT INTO comments (user_id, page_id, highlighted_text, comment_text) VALUES ($1, $2, $3, $4)',

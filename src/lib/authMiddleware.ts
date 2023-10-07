@@ -6,7 +6,6 @@ import { AuthenticatedRequest } from './types';  // Import the extended type
 export const verifyToken = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
-    console.log(authHeader);
 
     if (!token) {
         return res.status(401).json({ error: 'Token not provided' });
