@@ -4,6 +4,7 @@ import usersRoutes from './routes/users';
 import pagesRoutes from './routes/pages';
 import commentsRoutes from './routes/comments';
 import subscriptionRoutes from './routes/subscription';
+import bookRoutes from './routes/books';
 import cors from 'cors';
 
 const app: Express = express();
@@ -18,6 +19,7 @@ app.use('/api/users', usersRoutes);
 app.use('/api/pages', pagesRoutes);
 app.use('/api/comments', commentsRoutes);
 app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/books', bookRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

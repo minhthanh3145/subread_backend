@@ -18,12 +18,17 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
 
         let groupId;
         if (activeGroup.length === 0) {
-            // If not in an active group, check for an existing group with available seats
+            // Find a group with less than 10 users
             const { rows: availableGroup } = await pool.query(`
                 SELECT group_id FROM groups
-                WHERE start_date = CURRENT_DATE
+                WHERE group_id NOT IN (
+                    SELECT group_id FROM user_groups
+                    GROUP BY group_id
+                    HAVING COUNT(user_id) >= 10
+                )
                 LIMIT 1
-            `);
+                `);
+
 
             if (availableGroup.length === 0) {
                 // If no available group, create a new group
@@ -31,7 +36,7 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
                     INSERT INTO groups (start_date, current_book_id, current_day)
                     VALUES (CURRENT_DATE, 1, 1)
                     RETURNING group_id
-                `);
+                    `);
                 groupId = newGroup[0].group_id;
 
                 // Assign 10 random books to the new group
@@ -41,7 +46,8 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
                     FROM books
                     ORDER BY RANDOM()
                     LIMIT 10
-                `, [groupId]);
+                    `, [groupId]);
+
             } else {
                 groupId = availableGroup[0].group_id;
             }
@@ -55,20 +61,28 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
             groupId = activeGroup[0].group_id;
         }
 
-        // Fetch the pages for the current day from the book associated with the group, along with comment count
+        // Fetch a random book_id from the assigned 10 books for the group
+        const { rows: randomBook } = await pool.query(`
+            SELECT book_id FROM group_books
+            WHERE group_id = $1
+            ORDER BY RANDOM()
+            LIMIT 1
+        `, [groupId]);
+
+        const selectedBookId = randomBook[0].book_id;
+
+        // Fetch the pages for the current day from the randomly selected book, along with comment count
         const { rows: pages } = await pool.query(`
-    SELECT pages.*, COUNT(comments.comment_id) AS comment_count
-    FROM pages
-    LEFT JOIN comments ON pages.page_id = comments.page_id
-    WHERE pages.book_id = (
-        SELECT current_book_id FROM groups WHERE group_id = $1
-    ) AND pages.page_number BETWEEN (
-        SELECT current_day FROM groups WHERE group_id = $1
-    ) * 10 - 9 AND (
-        SELECT current_day FROM groups WHERE group_id = $1
-    ) * 10
-    GROUP BY pages.page_id
-`, [groupId]);
+            SELECT pages.*, COUNT(comments.comment_id) AS comment_count
+            FROM pages
+            LEFT JOIN comments ON pages.page_id = comments.page_id
+            WHERE pages.book_id = $1 AND pages.page_number BETWEEN (
+                SELECT current_day FROM groups WHERE group_id = $2
+            ) * 10 - 9 AND (
+                SELECT current_day FROM groups WHERE group_id = $2
+            ) * 10
+            GROUP BY pages.page_id
+`, [selectedBookId, groupId]);
 
         res.status(200).json(pages);
     } catch (err) {
