@@ -28,14 +28,21 @@ router.post('/add', verifyToken, async (req: AuthenticatedRequest, res: Response
     }
 });
 
+// Modified GET endpoint
 router.get('/page/:page_id', verifyToken, async (req: AuthenticatedRequest, res: Response) => {
     const { page_id } = req.params;
     try {
-        const { rows } = await pool.query('SELECT * FROM comments WHERE page_id = $1', [page_id]);
+        const { rows } = await pool.query(`
+            SELECT comments.*, users.username 
+            FROM comments 
+            JOIN users ON comments.user_id = users.user_id 
+            WHERE comments.page_id = $1
+        `, [page_id]);
         res.status(200).json(rows);
     } catch (err) {
         res.status(500).json({ error: 'Failed to fetch comments' });
     }
 });
+
 
 export default router;
