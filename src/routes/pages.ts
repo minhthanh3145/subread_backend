@@ -33,8 +33,8 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
             if (availableGroup.length === 0) {
                 // If no available group, create a new group
                 const { rows: newGroup } = await pool.query(`
-                    INSERT INTO groups (start_date, current_book_id, current_day)
-                    VALUES (CURRENT_DATE, 1, 1)
+                    INSERT INTO groups (start_date, current_day)
+                    VALUES (CURRENT_DATE, 1)
                     RETURNING group_id
                     `);
                 groupId = newGroup[0].group_id;
@@ -47,7 +47,6 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
                     ORDER BY RANDOM()
                     LIMIT 10
                     `, [groupId]);
-
             } else {
                 groupId = availableGroup[0].group_id;
             }
@@ -70,6 +69,10 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
             LIMIT 1
         `, [groupId]);
 
+        if (bookForTheDay.length === 0) {
+            // Handle the error, e.g., send an appropriate response or throw an error
+            return res.status(400).json({ error: 'No book assigned for today.' });
+        }
         const selectedBookId = bookForTheDay[0].book_id;
 
         // Fetch the pages for the current day from the determined book
