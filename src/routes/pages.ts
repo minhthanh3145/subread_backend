@@ -75,19 +75,30 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
         }
         const selectedBookId = bookForTheDay[0].book_id;
 
-        // Fetch the pages for the current day from the determined book
+        // First, get the total number of pages for the book
+        const { rows: totalPagesRow } = await pool.query(`
+    SELECT MAX(page_number) as max_page_number FROM pages WHERE book_id = $1
+`, [selectedBookId]);
+
+        const totalBookPages = totalPagesRow[0].max_page_number;
+
+        // Calculate the middle page start
+        const middlePageStart = Math.floor(totalBookPages / 2) - 4;  // Deducting 5 pages to get the middle range
+        const middlePageEnd = middlePageStart + 9;  // 10 pages in total
+
+        // Adjust the fetch logic based on current_day from the group and the middle pages.
         const { rows: pages } = await pool.query(`
-        SELECT pages.*, COUNT(comments.comment_id) AS comment_count
-        FROM pages
-        LEFT JOIN comments ON pages.page_id = comments.page_id
-        WHERE pages.book_id = $1 AND pages.page_number BETWEEN (
-            SELECT (current_day - 1) * 10 + 1 FROM groups WHERE group_id = $2
-        ) AND (
-            SELECT current_day * 10 FROM groups WHERE group_id = $2
-        )
-        GROUP BY pages.page_id
-        ORDER BY pages.page_number ASC
-    `, [selectedBookId, groupId]);
+    SELECT pages.*, COUNT(comments.comment_id) AS comment_count
+    FROM pages
+    LEFT JOIN comments ON pages.page_id = comments.page_id
+    WHERE pages.book_id = $1 AND pages.page_number BETWEEN (
+        SELECT (current_day - 1) * 10 + $2 FROM groups WHERE group_id = $3
+    ) AND (
+        SELECT (current_day - 1) * 10 + $3 FROM groups WHERE group_id = $4
+    )
+    GROUP BY pages.page_id
+    ORDER BY pages.page_number ASC
+`, [selectedBookId, middlePageStart, middlePageEnd, groupId]);
 
         res.status(200).json(pages);
     } catch (err) {
