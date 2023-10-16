@@ -85,10 +85,10 @@ router.post('/upload', verifyToken, upload.single('epubFile'), async (req: Authe
 
 
                     // Chunk text into pages
-                    const pages = chunkTextIntoPages(textContent, 600);
+                    const pages = chunkTextIntoPages(textContent, 500);
 
                     // Insert each page into the database
-                    for (let pageNumber = 5; pageNumber < pages.length; pageNumber++) {
+                    for (let pageNumber = 0; pageNumber < pages.length; pageNumber++) {
                         try {
                             await pool.query(
                                 'INSERT INTO pages (book_id, page_number, content) VALUES ($1, $2, $3)',
