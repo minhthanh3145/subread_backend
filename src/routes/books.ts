@@ -15,22 +15,29 @@ const router: Router = express.Router();
 const storage = multer.memoryStorage(); // Store the file in memory
 const upload = multer({ storage: storage });
 
-// Function to chunk text into pages
-function chunkTextIntoPages(text: string, maxWords: number): string[] {
-    const words = text.split(/\s+/);
-    const pages: string[] = [];
-    let currentPage: string[] = [];
+function chunkTextIntoPages(htmlContent: string, maxWords: number): string[] {
+    const $ = cheerio.load(htmlContent);
+    const paragraphs = $('body').find('p').map((_, elem) => $(elem).text().trim()).get();
 
-    for (const word of words) {
-        if (currentPage.length + 1 > maxWords) {
-            pages.push(currentPage.join(' '));
-            currentPage = [];
+    const pages: string[] = [];
+    let currentPageWords: string[] = [];
+
+    for (const paragraph of paragraphs) {
+        const words = paragraph.split(/\s+/);
+        for (const word of words) {
+            if (currentPageWords.length + 1 > maxWords) {
+                pages.push(currentPageWords.join(' '));
+                currentPageWords = [];
+            }
+            currentPageWords.push(word);
         }
-        currentPage.push(word);
+        // Ensure paragraphs are separated by new lines.
+        currentPageWords.push('\n');
     }
 
-    if (currentPage.length > 0) {
-        pages.push(currentPage.join(' '));
+    // Append the last page if there are any remaining words.
+    if (currentPageWords.length > 0) {
+        pages.push(currentPageWords.join(' '));
     }
 
     return pages;
@@ -77,15 +84,8 @@ router.post('/upload', verifyToken, upload.single('epubFile'), async (req: Authe
                         console.error(`Failed to get content for item ID ${item.id}:`, err);
                         return;
                     }
-
-                    // Use cheerio to extract text from HTML
-                    const $ = cheerio.load(htmlContent);
-                    const textContent = $('body').text();
-
-
-
                     // Chunk text into pages
-                    const pages = chunkTextIntoPages(textContent, 300);
+                    const pages = chunkTextIntoPages(htmlContent, 500);
 
                     // Insert each page into the database
                     for (let pageNumber = 0; pageNumber < pages.length; pageNumber++) {
