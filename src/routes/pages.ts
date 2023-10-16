@@ -84,7 +84,7 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
 
         // Calculate the middle page start
         const middlePageStart = Math.floor(totalBookPages / 2) - 4;  // Deducting 5 pages to get the middle range
-        const middlePageEnd = middlePageStart + 9;  // 10 pages in total
+        const middlePageEnd = middlePageStart + 30;  // 30 pages in total
 
         // Adjust the fetch logic based on current_day from the group and the middle pages.
         const { rows: pages } = await pool.query(`
@@ -92,7 +92,7 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
     FROM pages
     LEFT JOIN comments ON pages.page_id = comments.page_id
     WHERE pages.book_id = $1 AND pages.page_number BETWEEN (
-        SELECT (current_day - 1) * 10 + $2 FROM groups WHERE group_id = $3
+        SELECT (current_day - 1) * 10 + $2 FROM groups WHERE group_id = $4
     ) AND (
         SELECT (current_day - 1) * 10 + $3 FROM groups WHERE group_id = $4
     )
