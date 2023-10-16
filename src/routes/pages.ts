@@ -77,16 +77,17 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
 
         // Fetch the pages for the current day from the determined book
         const { rows: pages } = await pool.query(`
-            SELECT pages.*, COUNT(comments.comment_id) AS comment_count
-            FROM pages
-            LEFT JOIN comments ON pages.page_id = comments.page_id
-            WHERE pages.book_id = $1 AND pages.page_number BETWEEN (
-                SELECT current_day FROM groups WHERE group_id = $2
-            ) * 10 - 9 AND (
-                SELECT current_day FROM groups WHERE group_id = $2
-            ) * 10
-            GROUP BY pages.page_id
-        `, [selectedBookId, groupId]);
+        SELECT pages.*, COUNT(comments.comment_id) AS comment_count
+        FROM pages
+        LEFT JOIN comments ON pages.page_id = comments.page_id
+        WHERE pages.book_id = $1 AND pages.page_number BETWEEN (
+            SELECT (current_day - 1) * 10 + 1 FROM groups WHERE group_id = $2
+        ) AND (
+            SELECT current_day * 10 FROM groups WHERE group_id = $2
+        )
+        GROUP BY pages.page_id
+        ORDER BY pages.page_number ASC
+    `, [selectedBookId, groupId]);
 
         res.status(200).json(pages);
     } catch (err) {
