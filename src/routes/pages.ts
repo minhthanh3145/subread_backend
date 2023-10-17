@@ -2,6 +2,7 @@ import express, { Router, Response } from 'express';
 import { pool } from '../dbConfig';  // Import the pool object
 import { verifyToken } from '../lib/authMiddleware';
 import { AuthenticatedRequest } from '../lib/types';
+import { start } from 'repl';
 
 const router: Router = express.Router();
 
@@ -83,13 +84,23 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
 
         const totalBookPages = totalPagesRow[0].max_page_number;
 
-        // Calculate a random start page, ensuring there's room for 10 pages
-        let startPage = Math.floor(Math.random() * (totalBookPages - 9)) + 1;
+        // Get the current day of the group
+        const { rows: groupInfo } = await pool.query(`
+        SELECT current_day FROM groups WHERE group_id = $1
+        `, [groupId]);
+
+        const currentDay = groupInfo[0].current_day;
+
+        const maxStartPage = totalBookPages - 9;  // Ensuring there's always a range of 10 pages.
+        let startPage = (((currentDay - 1) * 10 % maxStartPage) + 1)
+        if(startPage < 20) {
+            startPage = 30;
+        }
         let endPage = startPage + 9;
 
         let pagesCount = 0;
 
-        while (pagesCount < 10 && startPage > 0) {
+        while (pagesCount < 10 && startPage >= 0) {
             const { rows: countPages } = await pool.query(`
             SELECT COUNT(*) as count 
             FROM pages 
@@ -97,25 +108,31 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
         `, [selectedBookId, startPage, endPage]);
 
             pagesCount = parseInt(countPages[0].count, 10);
-
             // If not enough pages, backtrack by 10 pages
             if (pagesCount < 10) {
                 startPage -= 10;
-                endPage = startPage + 9;
             }
+        }
 
-            // Check if we've found a valid range
-            if (pagesCount >= 10) {
-                const { rows: pages } = await pool.query(`
-                SELECT pages.*, COUNT(comments.comment_id) AS comment_count
-                FROM pages
-                LEFT JOIN comments ON pages.page_id = comments.page_id
-                WHERE pages.book_id = $1 AND pages.page_number BETWEEN $2 AND $3
-                GROUP BY pages.page_id
-                ORDER BY pages.page_number ASC
-            `, [selectedBookId, startPage, endPage]);
-                res.status(200).json(pages);
-            }
+        // Check if we've found a valid range
+        if (pagesCount >= 10) {
+            const { rows: pages } = await pool.query(`
+            SELECT 
+                pages.*, 
+                books.title AS book_title, 
+                books.author AS book_author,
+                COUNT(comments.comment_id) AS comment_count
+            FROM pages
+            INNER JOIN books ON pages.book_id = books.book_id
+            LEFT JOIN comments ON pages.page_id = comments.page_id
+            WHERE pages.book_id = $1 AND pages.page_number BETWEEN $2 AND $3
+            GROUP BY pages.page_id, books.title, books.author
+            ORDER BY pages.page_number ASC
+        `, [selectedBookId, startPage, endPage]);
+
+            res.status(200).json(pages);
+        } else {
+            res.status(404).json({ error: "Couldn't find a suitable range of 10 pages." });
         }
 
     } catch (err) {
