@@ -72,32 +72,38 @@ router.post('/upload', verifyToken, upload.single('epubFile'), async (req: Authe
                 if (unwantedItems.some(unwantedItem => unwantedItem.id === item.id)) {
                     continue;
                 }
-                epub.getChapter(item.id, async (err, htmlContent) => {
-                    if (err) {
-                        console.error(`Failed to get content for item ID ${item.id}:`, err);
-                        return;
-                    }
-
-                    // Use cheerio to extract text from HTML
-                    const $ = cheerio.load(htmlContent);
-                    const textContent = $('body').text();
-
-
-
-                    // Chunk text into pages
-                    const pages = chunkTextIntoPages(textContent, 500);
-
-                    // Insert each page into the database
-                    for (let pageNumber = 0; pageNumber < pages.length; pageNumber++) {
-                        try {
-                            await pool.query(
-                                'INSERT INTO pages (book_id, page_number, content) VALUES ($1, $2, $3)',
-                                [book_id, index * pages.length + pageNumber + 1, pages[pageNumber]]
-                            );
-                        } catch (dbErr) {
-                            console.error('Failed to insert page into the database:', dbErr);
+                // Wrap the chapter processing in a promise
+                await new Promise<void>((resolve, reject) => {
+                    epub.getChapter(item.id, async (err, htmlContent) => {
+                        if (err) {
+                            console.error(`Failed to get content for item ID ${item.id}:`, err);
+                            return;
                         }
-                    }
+
+                        // Use cheerio to extract text from HTML
+                        const $ = cheerio.load(htmlContent);
+                        const textContent = $('body').text();
+
+
+
+                        // Chunk text into pages
+                        const pages = chunkTextIntoPages(textContent, 500);
+
+                        // Insert each page into the database
+                        for (let pageNumber = 0; pageNumber < pages.length; pageNumber++) {
+                            try {
+                                await pool.query(
+                                    'INSERT INTO pages (book_id, page_number, content) VALUES ($1, $2, $3)',
+                                    [book_id, index * pages.length + pageNumber + 1, pages[pageNumber]]
+                                );
+                            } catch (dbErr) {
+                                console.error('Failed to insert page into the database:', dbErr);
+                                reject(dbErr);
+                                return;
+                            }
+                        }
+                    });
+                    resolve();  // Resolve the promise after successfully processing the chapter
                 });
             }
 

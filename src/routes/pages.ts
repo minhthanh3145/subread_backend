@@ -77,28 +77,24 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
 
         // First, get the total number of pages for the book
         const { rows: totalPagesRow } = await pool.query(`
-    SELECT MAX(page_number) as max_page_number FROM pages WHERE book_id = $1
-`, [selectedBookId]);
+        SELECT MAX(page_number) as max_page_number FROM pages WHERE book_id = $1
+        `, [selectedBookId]);
 
         const totalBookPages = totalPagesRow[0].max_page_number;
 
-        // Calculate the middle page start
-        const middlePageStart = Math.floor(totalBookPages / 2) - 4;  // Deducting 5 pages to get the middle range
-        const middlePageEnd = middlePageStart + 30;  // 30 pages in total
+        // Calculate a random start page, ensuring there's room for 10 pages
+        const startPage = Math.floor(Math.random() * (totalBookPages - 9)) + 1;
+        const endPage = startPage + 9;
 
-        // Adjust the fetch logic based on current_day from the group and the middle pages.
+        // Fetch the pages for the day
         const { rows: pages } = await pool.query(`
-    SELECT pages.*, COUNT(comments.comment_id) AS comment_count
-    FROM pages
-    LEFT JOIN comments ON pages.page_id = comments.page_id
-    WHERE pages.book_id = $1 AND pages.page_number BETWEEN (
-        SELECT (current_day - 1) * 10 + $2 FROM groups WHERE group_id = $4
-    ) AND (
-        SELECT (current_day - 1) * 10 + $3 FROM groups WHERE group_id = $4
-    )
-    GROUP BY pages.page_id
-    ORDER BY pages.page_number ASC
-`, [selectedBookId, middlePageStart, middlePageEnd, groupId]);
+        SELECT pages.*, COUNT(comments.comment_id) AS comment_count
+        FROM pages
+        LEFT JOIN comments ON pages.page_id = comments.page_id
+        WHERE pages.book_id = $1 AND pages.page_number BETWEEN $2 AND $3
+        GROUP BY pages.page_id
+        ORDER BY pages.page_number ASC
+        `, [selectedBookId, startPage, endPage]);
 
         res.status(200).json(pages);
     } catch (err) {
