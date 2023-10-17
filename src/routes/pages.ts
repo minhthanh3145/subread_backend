@@ -7,6 +7,7 @@ const router: Router = express.Router();
 
 router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
+        console.log("Hello");
         const userId = req.user.userId;
 
         // Check if the user is in an active group
@@ -83,20 +84,40 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
         const totalBookPages = totalPagesRow[0].max_page_number;
 
         // Calculate a random start page, ensuring there's room for 10 pages
-        const startPage = Math.floor(Math.random() * (totalBookPages - 9)) + 1;
-        const endPage = startPage + 9;
+        let startPage = Math.floor(Math.random() * (totalBookPages - 9)) + 1;
+        let endPage = startPage + 9;
 
-        // Fetch the pages for the day
-        const { rows: pages } = await pool.query(`
-        SELECT pages.*, COUNT(comments.comment_id) AS comment_count
-        FROM pages
-        LEFT JOIN comments ON pages.page_id = comments.page_id
-        WHERE pages.book_id = $1 AND pages.page_number BETWEEN $2 AND $3
-        GROUP BY pages.page_id
-        ORDER BY pages.page_number ASC
+        let pagesCount = 0;
+
+        while (pagesCount < 10 && startPage > 0) {
+            const { rows: countPages } = await pool.query(`
+            SELECT COUNT(*) as count 
+            FROM pages 
+            WHERE book_id = $1 AND page_number BETWEEN $2 AND $3
         `, [selectedBookId, startPage, endPage]);
 
-        res.status(200).json(pages);
+            pagesCount = parseInt(countPages[0].count, 10);
+
+            // If not enough pages, backtrack by 10 pages
+            if (pagesCount < 10) {
+                startPage -= 10;
+                endPage = startPage + 9;
+            }
+
+            // Check if we've found a valid range
+            if (pagesCount >= 10) {
+                const { rows: pages } = await pool.query(`
+                SELECT pages.*, COUNT(comments.comment_id) AS comment_count
+                FROM pages
+                LEFT JOIN comments ON pages.page_id = comments.page_id
+                WHERE pages.book_id = $1 AND pages.page_number BETWEEN $2 AND $3
+                GROUP BY pages.page_id
+                ORDER BY pages.page_number ASC
+            `, [selectedBookId, startPage, endPage]);
+                res.status(200).json(pages);
+            }
+        }
+
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Failed to fetch daily pages' });
