@@ -11,6 +11,12 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
         console.log("Hello");
         const userId = req.user.userId;
 
+        // Update current_day for all groups
+        await pool.query(`
+            UPDATE groups
+            SET current_day = EXTRACT(DAY FROM (CURRENT_DATE - start_date)) + 1
+        `);
+
         // Check if the user is in an active group
         const { rows: activeGroup } = await pool.query(`
             SELECT * FROM user_groups
@@ -93,7 +99,7 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
 
         const maxStartPage = totalBookPages - 9;  // Ensuring there's always a range of 10 pages.
         let startPage = (((currentDay - 1) * 10 % maxStartPage) + 1)
-        if(startPage < 20) {
+        if (startPage < 20) {
             startPage = 30;
         }
         let endPage = startPage + 9;
