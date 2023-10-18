@@ -13,8 +13,8 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
 
         // Update current_day for all groups
         await pool.query(`
-            UPDATE groups
-            SET current_day = EXTRACT(DAY FROM (CURRENT_DATE - start_date)) + 1
+        UPDATE groups
+        SET current_day = (CURRENT_DATE - start_date) + 1
         `);
 
         // Check if the user is in an active group
