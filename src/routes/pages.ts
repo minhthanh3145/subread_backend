@@ -68,14 +68,22 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
             groupId = activeGroup[0].group_id;
         }
 
+        const { rows: totalBooksForGroup } = await pool.query(`
+            SELECT COUNT(book_id) as book_count 
+            FROM group_books
+            WHERE group_id = $1
+        `, [groupId]);
+
+        const numberOfBooks = totalBooksForGroup[0].book_count;
+
         // Determine the book for the day using the current_day value
         const { rows: bookForTheDay } = await pool.query(`
             SELECT book_id FROM group_books
             WHERE group_id = $1 AND day = (
-                SELECT MOD(current_day, 10) + 1 FROM groups WHERE group_id = $1
+                SELECT MOD(current_day, $2) + 1 FROM groups WHERE group_id = $1
             )
             LIMIT 1
-        `, [groupId]);
+        `, [groupId, numberOfBooks]);
 
         if (bookForTheDay.length === 0) {
             // Handle the error, e.g., send an appropriate response or throw an error
@@ -85,15 +93,15 @@ router.get('/daily', verifyToken, async (req: AuthenticatedRequest, res: Respons
 
         // First, get the total number of pages for the book
         const { rows: totalPagesRow } = await pool.query(`
-        SELECT MAX(page_number) as max_page_number FROM pages WHERE book_id = $1
-        `, [selectedBookId]);
+            SELECT MAX(page_number) as max_page_number FROM pages WHERE book_id = $1
+            `, [selectedBookId]);
 
         const totalBookPages = totalPagesRow[0].max_page_number;
 
         // Get the current day of the group
         const { rows: groupInfo } = await pool.query(`
-        SELECT current_day FROM groups WHERE group_id = $1
-        `, [groupId]);
+            SELECT current_day FROM groups WHERE group_id = $1
+            `, [groupId]);
 
         const currentDay = groupInfo[0].current_day;
 
